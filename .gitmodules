@@ -18,14 +18,14 @@
 #	url = git@github.com:thanawatkate/saccmproject.git
   
 
-[submodule "aihubproject"]
-    path = aihubproject
-    url = git@github.com:thanawatkate/aihubproject.git
+#[submodule "aihubproject"]
+ #   path = aihubproject
+  #  url = git@github.com:thanawatkate/aihubproject.git
     
 #[submodule "SimTally"]
 #	path = SimTally
 #	url = git@github.com:thanawatkate/SimTally-By-KTdev.git
 
-[submodule "ThaiSnapAI"]
-	path = ThaiSnapAI
-	url = git@github.com:thanawatkate/ThaiSnapAI.git
+#[submodule "ThaiSnapAI"]
+#	path = ThaiSnapAI
+#	url = git@github.com:thanawatkate/ThaiSnapAI.git
