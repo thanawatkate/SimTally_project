@@ -4,6 +4,7 @@
 /ktdevelop_web/
 /saccmproject/
 /sitebase/
+/registry-backend/
 
 .sync-backup/
 .sync-submodules.lock

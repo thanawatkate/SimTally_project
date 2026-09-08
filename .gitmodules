@@ -13,18 +13,22 @@
 #	url = git@github.com:thanawatkate/cookie-banner-system.git
     
 
-#[submodule "saccmproject"]
-#	path = saccmproject
-#	url = git@github.com:thanawatkate/saccmproject.git
+[submodule "saccmproject"]
+	path = saccmproject
+	url = git@github.com:thanawatkate/saccmproject.git
   
 
 #[submodule "aihubproject"]
  #   path = aihubproject
   #  url = git@github.com:thanawatkate/aihubproject.git
     
-#[submodule "SimTally"]
-#	path = SimTally
-#	url = git@github.com:thanawatkate/SimTally-By-KTdev.git
+[submodule "SimTally"]
+	path = SimTally
+	url = git@github.com:thanawatkate/SimTally-By-KTdev.git
+
+[submodule "registry-backend"]
+	path = registry-backend
+	url = git@github.com:thanawatkate/ktdev-registry.git
 
 #[submodule "ThaiSnapAI"]
 #	path = ThaiSnapAI

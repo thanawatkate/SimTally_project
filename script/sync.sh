@@ -72,22 +72,53 @@ mapfile -t SUBMODULE_NAMES < <(git config -f .gitmodules --get-regexp 'submodule
 
 declare -A SUB_PATH SUB_URL
 SUBMODULE_PATHS=()
-for name in "${SUBMODULE_NAMES[@]}"; do
+for name in "${SUBMODULE_NAMES[@]:-}"; do
+  [[ -z "$name" ]] && continue
   SUB_PATH["$name"]=$(git config -f .gitmodules --get "submodule.$name.path")
   SUB_URL["$name"]=$(git config -f .gitmodules --get "submodule.$name.url")
   SUBMODULE_PATHS+=("${SUB_PATH[$name]}")
 done
 
-# Build exclusion list: always-safe dirs + the script dir itself
-SCRIPT_DIR="$(basename "$(dirname "${BASH_SOURCE[0]}")")"
-EXCLUDED_DIRS=("$SCRIPT_DIR" "docs" "deploy" ".sync-backup")
+if [[ ${#SUBMODULE_PATHS[@]} -eq 0 ]]; then
+  echo "[INFO] No enabled submodules in .gitmodules (commented-out entries are ignored)."
+  echo "[INFO] Uncomment a [submodule ...] block, then re-run this script to clone it."
+fi
 
-is_excluded() {
+# Hard invariant: never delete script/ (this file's directory) under any case.
+SCRIPT_DIR_NAME="$(basename "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)")"
+EXCLUDED_DIRS=("script" "$SCRIPT_DIR_NAME" "docs" "deploy" ".sync-backup")
+
+normalize_rel_path() {
   local dir="$1"
+  dir="${dir%/}"
+  dir="${dir#./}"
+  if [[ "$dir" == "$ROOT_DIR"/* ]]; then
+    dir="${dir#"$ROOT_DIR"/}"
+  fi
+  printf '%s' "$dir"
+}
+
+# True for dirs that must never be removed (script/ in particular).
+is_excluded() {
+  local dir
+  dir="$(normalize_rel_path "$1")"
+  local ex
   for ex in "${EXCLUDED_DIRS[@]}"; do
     [[ "$dir" == "$ex" ]] && return 0
   done
   return 1
+}
+
+# Last-line defense: never rm -rf a protected path (especially script/).
+safe_rm_rf() {
+  local target
+  for target in "$@"; do
+    if is_excluded "$target"; then
+      echo "  [SKIP] Refusing rm -rf of protected path '$target'."
+      continue
+    fi
+    rm -rf -- "$target"
+  done
 }
 
 is_registered() {
@@ -102,6 +133,10 @@ is_registered() {
 # Unregister a gitlink that is no longer in .gitmodules, then delete the folder.
 unregister_stale_gitlink() {
   local dir="$1"
+  if is_excluded "$dir"; then
+    echo "  [SKIP] Refusing to remove protected directory '$dir'."
+    return 0
+  fi
   if [[ -e "$dir/.git" ]] && repo_is_mid_operation "$dir"; then
     echo "  [ERROR] '$dir' is mid-rebase/merge — skipping unregister."
     return 1
@@ -115,7 +150,7 @@ unregister_stale_gitlink() {
   git submodule deinit -f "$dir" 2>/dev/null || true
   git rm --cached -f "$dir" 2>/dev/null || true
   git config --remove-section "submodule.$dir" 2>/dev/null || true
-  rm -rf "$dir" "$ROOT_DIR/.git/modules/$dir"
+  safe_rm_rf "$dir" "$ROOT_DIR/.git/modules/$dir"
 }
 
 # ── step 1: remove paths no longer listed in .gitmodules ──────────────────────
@@ -147,6 +182,7 @@ done
 # Index gitlinks whose folder was already deleted
 while IFS= read -r path; do
   [[ -z "$path" ]] && continue
+  is_excluded "$path" && continue
   is_registered "$path" && continue
   [[ -n "${SEEN_STALE[$path]:-}" ]] && continue
   unregister_stale_gitlink "$path"
@@ -163,30 +199,78 @@ fi
 echo "==> Syncing git submodule URLs from .gitmodules..."
 git submodule sync --recursive
 
-# ── step 3: re-register renamed/url-changed submodules ────────────────────────
+# Clone a submodule listed in .gitmodules even if it was never `git submodule add`'d.
+ensure_submodule() {
+  local name="$1"
+  local path="$2"
+  local url="$3"
 
-echo "==> Detecting new/renamed submodules and re-registering them..."
-for name in "${SUBMODULE_NAMES[@]}"; do
+  if [[ -z "$path" || -z "$url" ]]; then
+    echo "  [ERROR] Incomplete .gitmodules entry for '$name' — skipping."
+    return 0
+  fi
+  if is_excluded "$path"; then
+    echo "  [SKIP] Refusing to clone over protected path: $path"
+    return 0
+  fi
+
+  git config "submodule.$name.url" "$url" || true
+  git config "submodule.$name.active" true || true
+
+  if [[ -e "$path/.git" ]]; then
+    echo "  [OK] $name already present at $path"
+    return 0
+  fi
+
+  if [[ -d "$path" ]] && [[ -n "$(ls -A "$path" 2>/dev/null)" ]]; then
+    echo "  [WARN] '$path' exists but is not a git checkout — skipping clone to avoid overwrite."
+    return 0
+  fi
+
+  echo "  -> Cloning $name: $url -> $path"
+  if git submodule add -f "$url" "$path"; then
+    return 0
+  fi
+
+  echo "  [INFO] git submodule add failed (entry may already be in .gitmodules) — cloning directly..."
+  safe_rm_rf "$path"
+  if git clone "$url" "$path"; then
+    git add "$path" || true
+    return 0
+  fi
+  echo "  [ERROR] Failed to clone $name from $url"
+  return 0
+}
+
+# ── step 3: clone / re-register submodules listed in .gitmodules ──────────────
+
+echo "==> Ensuring every enabled submodule is cloned..."
+for name in "${SUBMODULE_NAMES[@]:-}"; do
+  [[ -z "$name" ]] && continue
   path="${SUB_PATH[$name]}"
   url="${SUB_URL[$name]}"
   registered_url=$(git config -f .git/config --get "submodule.$name.url" 2>/dev/null || true)
-  if [[ -z "$registered_url" || "$registered_url" != "$url" ]]; then
-    # Guard: abort if mid-operation
-    if [[ -d "$path" ]] && repo_is_mid_operation "$path"; then
+
+  if [[ -n "$registered_url" && "$registered_url" != "$url" && -e "$path/.git" ]]; then
+    if is_excluded "$path"; then
+      echo "  [SKIP] Refusing to delete/re-register protected path: $path"
+      continue
+    fi
+    if repo_is_mid_operation "$path"; then
       echo "  [ERROR] '$path' is mid-rebase/merge — skipping re-registration."
       continue
     fi
-    # Guard: backup if dirty
-    if [[ -d "$path" ]] && submodule_is_dirty "$path"; then
+    if submodule_is_dirty "$path"; then
       echo "  [WARN] '$path' has uncommitted changes — backing up before re-registration."
       backup_submodule "$path"
     fi
     echo "  -> Re-registering submodule: $path -> $url"
     git submodule deinit -f "$path" 2>/dev/null || true
     git rm --cached "$path" 2>/dev/null || true
-    rm -rf "$path" ".git/modules/$name"
-    git submodule add -f "$url" "$path"
+    safe_rm_rf "$path" ".git/modules/$name"
   fi
+
+  ensure_submodule "$name" "$path" "$url"
 done
 
 # ── step 4: init new submodules ───────────────────────────────────────────────
