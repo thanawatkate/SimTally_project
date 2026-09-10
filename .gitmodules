@@ -15,7 +15,7 @@
 
 [submodule "saccmproject"]
 	path = saccmproject
-	url = git@github.com:thanawatkate/saccmproject.git
+	url = git@github.com:thanawatkate/saccm.git
   
 
 #[submodule "aihubproject"]
