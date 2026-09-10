@@ -13,9 +13,9 @@
 #	url = git@github.com:thanawatkate/cookie-banner-system.git
     
 
-[submodule "saccmproject"]
-	path = saccmproject
-	url = git@github.com:thanawatkate/saccm.git
+#[submodule "saccmproject"]
+#	path = saccmproject
+#	url = git@github.com:thanawatkate/saccm.git
   
 
 #[submodule "aihubproject"]
