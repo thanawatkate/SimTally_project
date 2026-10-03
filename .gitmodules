@@ -1,27 +1,4 @@
-#[submodule "sitebase"]
-#    path = sitebase
-#    url = git@github.com:thanawatkate/sitebase.git
-   
 
-#[submodule "ktdevelop_web"]
-#    path = ktdevelop_web
-#    url = git@github.com:thanawatkate/ktdevelop_web.git
- 
-	
-#[submodule "cookie-banner"]
-#	path = cookie-banner
-#	url = git@github.com:thanawatkate/cookie-banner-system.git
-    
-
-#[submodule "saccmproject"]
-#	path = saccmproject
-#	url = git@github.com:thanawatkate/saccm.git
-  
-
-#[submodule "aihubproject"]
- #   path = aihubproject
-  #  url = git@github.com:thanawatkate/aihubproject.git
-    
 [submodule "SimTally"]
 	path = SimTally
 	url = git@github.com:thanawatkate/SimTally-By-KTdev.git
@@ -29,7 +6,3 @@
 [submodule "registry-backend"]
 	path = registry-backend
 	url = git@github.com:thanawatkate/ktdev-registry.git
-
-#[submodule "ThaiSnapAI"]
-#	path = ThaiSnapAI
-#	url = git@github.com:thanawatkate/ThaiSnapAI.git
